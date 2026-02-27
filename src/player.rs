@@ -1,19 +1,12 @@
-use std::ptr::with_exposed_provenance_mut;
-
 use crate::bullet::Bullet;
 // use crate::traits::Tank;
 use crate::utils::{MovementDirection, Position};
-use ratatui::symbols::border::HEAVY_DOUBLE_DASHED;
 use ratatui::{
-    DefaultTerminal, Frame,
-    buffer::Buffer,
-    layout::{Direction, Rect},
+    layout::Rect,
     style::Stylize,
-    symbols::border,
-    text::{Line, Text},
-    widgets::{Block, Paragraph, Widget},
+    widgets::{Paragraph, Widget},
 };
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Tank {
     pub position: Position,
     pub direction: MovementDirection,
@@ -35,15 +28,26 @@ impl Tank {
 }
 
 impl Widget for &Tank {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
-        Paragraph::new(match self.direction {
-            MovementDirection::Right => " ▂ \n 𜱴𜱢\n 🮂 ",
-            MovementDirection::Up => "   \n▮𜱷▮\n    ",
-            MovementDirection::Left => " ▂ \n𜱠𜱶 \n 🮂 ",
-            MovementDirection::Down => "   \n▮𜱵▮\n   ",
-        })
-        .green()
-        .render(self.get_rect(), buf);
+    fn render(self, _area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
+        if self.health != 0 {
+            Paragraph::new(match self.direction {
+                MovementDirection::Right => " ▂ \n 𜱴𜱢\n 🮂 ",
+                MovementDirection::Up => "   \n▮𜱷▮\n    ",
+                MovementDirection::Left => " ▂ \n𜱠𜱶 \n 🮂 ",
+                MovementDirection::Down => "   \n▮𜱵▮\n   ",
+            })
+            .green()
+            .render(self.get_rect(), buf);
+        } else {
+            Paragraph::new(match self.direction {
+                MovementDirection::Right => " # \n ##\n # ",
+                MovementDirection::Up => "   \n###\n    ",
+                MovementDirection::Left => " # \n## \n # ",
+                MovementDirection::Down => "   \n###\n   ",
+            })
+            .green()
+            .render(self.get_rect(), buf);
+        }
     }
 }
 
@@ -56,8 +60,7 @@ impl Tank {
         res
     }
 
-    pub fn move_forward(&mut self, obstacles: &Vec<Rect>) {
-        let obstacles = obstacles.clone();
+    pub fn move_forward(&mut self, obstacles: &[Rect]) {
         match self.direction {
             MovementDirection::Left => self.move_left(obstacles),
             MovementDirection::Up => self.move_up(obstacles),
@@ -65,12 +68,16 @@ impl Tank {
             MovementDirection::Down => self.move_down(obstacles),
         }
     }
-    pub fn move_up(&mut self, obstacles: Vec<Rect>) {
+    pub fn move_up(&mut self, obstacles: &[Rect]) {
         match self.direction {
             MovementDirection::Up => {
+                let prev_rect = self.get_rect();
                 self.position.1 = self.position.1.saturating_sub(1);
                 for obstacle in obstacles {
-                    if self.get_rect().intersects(obstacle) {
+                    if *obstacle == prev_rect {
+                        continue;
+                    }
+                    if self.get_rect().intersects(*obstacle) {
                         self.position.1 += 1;
                     }
                 }
@@ -80,12 +87,16 @@ impl Tank {
             }
         }
     }
-    pub fn move_down(&mut self, obstacles: Vec<Rect>) {
+    pub fn move_down(&mut self, obstacles: &[Rect]) {
         match self.direction {
             MovementDirection::Down => {
+                let prev_rect = self.get_rect();
                 self.position.1 = self.position.1.saturating_add(1);
                 for obstacle in obstacles {
-                    if self.get_rect().intersects(obstacle) {
+                    if *obstacle == prev_rect {
+                        continue;
+                    }
+                    if self.get_rect().intersects(*obstacle) {
                         self.position.1 -= 1;
                         return;
                     }
@@ -97,12 +108,16 @@ impl Tank {
         }
     }
 
-    pub fn move_right(&mut self, obstacles: Vec<Rect>) {
+    pub fn move_right(&mut self, obstacles: &[Rect]) {
         match self.direction {
             MovementDirection::Right => {
+                let prev_rect = self.get_rect();
                 self.position.0 = self.position.0.saturating_add(1);
                 for obstacle in obstacles {
-                    if self.get_rect().intersects(obstacle) {
+                    if *obstacle == prev_rect {
+                        continue;
+                    }
+                    if self.get_rect().intersects(*obstacle) {
                         self.position.0 -= 1;
                         return;
                     }
@@ -113,12 +128,16 @@ impl Tank {
             }
         }
     }
-    pub fn move_left(&mut self, obstacles: Vec<Rect>) {
+    pub fn move_left(&mut self, obstacles: &[Rect]) {
         match self.direction {
             MovementDirection::Left => {
+                let prev_rect = self.get_rect();
                 self.position.0 = self.position.0.saturating_sub(1);
                 for obstacle in obstacles {
-                    if self.get_rect().intersects(obstacle) {
+                    if *obstacle == prev_rect {
+                        continue;
+                    }
+                    if self.get_rect().intersects(*obstacle) {
                         self.position.0 += 1;
                         return;
                     }
@@ -193,12 +212,7 @@ impl Tank {
             MovementDirection::Down => (x + 1, y + 1),
         };
         self.move_forward_steps = 0;
-        Bullet {
-            direction,
-            position,
-            collided: false,
-            frames: 5,
-        }
+        Bullet::new(position, direction)
     }
     pub fn get_rect(&self) -> Rect {
         let (x, y) = self.position;
@@ -230,11 +244,11 @@ impl Tank {
 }
 
 impl Tank {
-    pub fn receive_hp(&mut self) {
-        self.health = self.health.saturating_add(1);
+    pub fn receive_hp(&mut self, amount: usize) {
+        self.health = self.health.saturating_add(amount);
     }
-    pub fn receive_damage(&mut self) {
-        self.health = self.health.saturating_sub(1);
+    pub fn receive_damage(&mut self, amount: usize) {
+        self.health = self.health.saturating_sub(amount);
     }
 }
 const PLAYER_LEFT: &str = "  ▂  \n  𜱴𜱢\n  🮂";
