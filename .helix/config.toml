@@ -1,3 +1,5 @@
+[editor]
+rainbow-brackets=true
 [editor.auto-save]
 focus-lost = true
 after-delay.enable=true

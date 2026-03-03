@@ -8,14 +8,19 @@ use ratatui::{
 };
 pub struct Enemy {
     pub tank: Tank,
+    pub needs_rotation: bool,
 }
 impl Enemy {
     pub fn new(position: Position) -> Self {
         Self {
             tank: Tank::new(position),
+            needs_rotation: false,
         }
     }
 
+    pub fn get_pos(&self) -> (u16, u16) {
+        self.tank.position
+    }
     pub fn get_rect(&self) -> Rect {
         self.tank.get_rect()
     }
@@ -24,7 +29,7 @@ impl Enemy {
     }
     pub fn shoot(&mut self) -> Option<Bullet> {
         if self.tank.health != 0 {
-            Some(self.tank.shoot())
+            self.tank.shoot()
         } else {
             None
         }
@@ -34,8 +39,15 @@ impl Enemy {
         if self.tank.health > 0 {
             self.tank.receive_damage(1);
             self.tank.move_forward_steps = 0;
+            self.needs_rotation = true;
         }
     }
+
+    pub fn rotate(&mut self) {
+        self.tank.rotate();
+        self.needs_rotation = false;
+    }
+
     pub fn is_destroyed(&self) -> bool {
         self.tank.health == 0
     }

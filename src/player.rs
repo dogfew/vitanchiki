@@ -6,6 +6,9 @@ use ratatui::{
     style::Stylize,
     widgets::{Paragraph, Widget},
 };
+
+const HEALTH: usize = 3;
+const MAX_AMMO: usize = 5;
 #[derive(Default)]
 pub struct Tank {
     pub position: Position,
@@ -13,6 +16,8 @@ pub struct Tank {
     pub health: usize,
     pub ammo: usize,
     pub move_forward_steps: usize,
+    pub max_health: usize,
+    pub max_ammo: usize,
 }
 
 impl Tank {
@@ -20,10 +25,26 @@ impl Tank {
         Self {
             position,
             direction: MovementDirection::default(),
-            health: 3,
-            ammo: 1000,
+            health: HEALTH,
+            ammo: MAX_AMMO,
             move_forward_steps: 0,
+            max_health: 5,
+            max_ammo: 5,
         }
+    }
+
+    pub(crate) fn super_shoot(&mut self) -> Bullet {
+        let direction = self.direction;
+        let (x, y) = self.position;
+        let position: Position = match direction {
+            MovementDirection::Left => (x, y + 1),
+            MovementDirection::Right => (x + 2, y + 1),
+            MovementDirection::Up => (x + 1, y),
+            MovementDirection::Down => (x + 1, y + 1),
+        };
+        self.move_forward_steps = 0;
+        self.ammo -= MAX_AMMO;
+        Bullet::new(position, direction)
     }
 }
 
@@ -52,6 +73,11 @@ impl Widget for &Tank {
 }
 
 impl Tank {
+    pub fn add_ammo(&mut self) {
+        if self.ammo < MAX_AMMO {
+            self.ammo += 1
+        }
+    }
     pub fn shall_move_forward(&mut self) -> bool {
         let res = self.move_forward_steps > 0;
         if res {
@@ -202,17 +228,22 @@ impl Tank {
             }
         }
     }
-    pub fn shoot(&mut self) -> Bullet {
-        let direction = self.direction;
-        let (x, y) = self.position;
-        let position: Position = match direction {
-            MovementDirection::Left => (x, y + 1),
-            MovementDirection::Right => (x + 2, y + 1),
-            MovementDirection::Up => (x + 1, y),
-            MovementDirection::Down => (x + 1, y + 1),
-        };
-        self.move_forward_steps = 0;
-        Bullet::new(position, direction)
+    pub fn shoot(&mut self) -> Option<Bullet> {
+        if self.ammo > 0 {
+            let direction = self.direction;
+            let (x, y) = self.position;
+            let position: Position = match direction {
+                MovementDirection::Left => (x, y + 1),
+                MovementDirection::Right => (x + 2, y + 1),
+                MovementDirection::Up => (x + 1, y),
+                MovementDirection::Down => (x + 1, y + 1),
+            };
+            self.move_forward_steps = 0;
+            self.ammo -= 1;
+            Some(Bullet::new(position, direction))
+        } else {
+            None
+        }
     }
     pub fn get_rect(&self) -> Rect {
         let (x, y) = self.position;
@@ -251,7 +282,3 @@ impl Tank {
         self.health = self.health.saturating_sub(amount);
     }
 }
-const PLAYER_LEFT: &str = "  ▂  \n  𜱴𜱢\n  🮂";
-const PLAYER_UP: &str = "   \n ▮𜱷▮ \n   ";
-const PLAYER_RIGHT: &str = "  ▂  \n 𜱠𜱶 \n  🮂";
-const PLAYER_DOWN: &str = "   \n ▮𜱵▮ \n   ";

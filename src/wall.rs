@@ -1,14 +1,9 @@
-use std::rc::Rc;
-
 use crate::utils::Position;
 use ratatui::{
-    DefaultTerminal, Frame,
-    buffer::Buffer,
-    layout::{Direction, Rect},
+    layout::Rect,
     style::Stylize,
-    symbols::border::{self, ONE_EIGHTH_TALL},
-    text::{Line, Text},
-    widgets::{Block, Paragraph, Widget},
+    symbols::border::ONE_EIGHTH_TALL,
+    widgets::{Block, Widget},
 };
 pub enum WallType {
     Static,
