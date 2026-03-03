@@ -10,7 +10,7 @@ use ratatui::{
     widgets::{Paragraph, Widget},
 };
 impl Widget for &Bullet {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
+    fn render(self, _area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
         let symbol = {
             match self.direction {
                 MovementDirection::Up | MovementDirection::Down => "|",

@@ -20,7 +20,6 @@ use utils::MovementDirection;
 use wall::Wall;
 
 use crate::{animations::Dummy, bullet, enemy, player, utils, wall};
-
 pub struct App<'a> {
     pub player: Tank,
     pub walls: Vec<Wall>,
@@ -28,9 +27,13 @@ pub struct App<'a> {
     pub bullets: Vec<Bullet>,
     pub dummies: Vec<Dummy<'a>>,
     difficulty: Difficulty,
-    pub exit: bool,
-    pub restart: bool,
+    state: AppState,
     lvl: u16,
+}
+pub enum AppState {
+    Playing,
+    Restart,
+    Exit,
 }
 enum Difficulty {
     Easy,
@@ -49,17 +52,24 @@ impl<'a> App<'a> {
         factor: u16,
         div_factor: u16,
         lvl: u16,
+        is_hard: bool,
     ) -> io::Result<Self> {
         let size = terminal.size()?;
+        let max_ammo = if is_hard { 3 } else { 5 };
         let mut app = App {
-            player: Tank::new((2, 2)),
+            player: Tank::new((2, 2), max_ammo),
             walls: Vec::new(),
             enemies: Vec::new(),
             bullets: Vec::new(),
             dummies: Vec::new(),
-            difficulty: Difficulty::Hard,
-            exit: false,
-            restart: false,
+            difficulty: if is_hard {
+                Difficulty::Hard
+            } else {
+                Difficulty::Easy
+            },
+            state: AppState::Playing,
+            // exit: false,
+            // restart: false,
             lvl,
         };
         let (width, height) = (size.width, size.height);
@@ -113,7 +123,8 @@ impl<'a> App<'a> {
             Rect::new(0, max_y - 1, max_x, 1),
             Rect::new(max_x - 1, 0, 1, max_y),
         ];
-        while !self.exit {
+        let is_hard = self.is_hard();
+        while matches!(self.state, AppState::Playing) {
             let timer = Instant::now();
             i = i.wrapping_add(1);
             self.bullets.retain_mut(|bullet| {
@@ -191,7 +202,11 @@ impl<'a> App<'a> {
                 if !e.is_destroyed() {
                     let looks_vertical = e.tank.position.0.abs_diff(self.player.position.0) <= 1;
                     let looks_horizontal = e.tank.position.1.abs_diff(self.player.position.1) <= 1;
+                    if i.is_multiple_of(ENEMY_SHOOT_INTERVAL) {
+                        e.tank.ammo = 1;
+                    };
                     if looks_vertical || looks_horizontal {
+                        // Rotate tank
                         if looks_vertical {
                             if self.player.position.1 > e.tank.position.1 {
                                 e.tank.rotate_down();
@@ -206,45 +221,24 @@ impl<'a> App<'a> {
                                 e.tank.rotate_left();
                             }
                         }
-                        match self.difficulty {
-                            Difficulty::Hard => {
-                                if i.is_multiple_of(ENEMY_SHOOT_INTERVAL) {
-                                    e.tank.ammo = 1;
-                                    if let Some(bullet) = e.shoot() {
-                                        self.bullets.push(bullet);
-                                    }
-                                } else if i.is_multiple_of(ENEMY_ROTATION_INTERVAL) {
-                                    e.tank.move_forward_steps = 1;
-                                    e.tank.move_forward(&obstacles);
-                                }
-                            }
-                            Difficulty::Easy => {
-                                e.tank.ammo = 1;
-                                if i.is_multiple_of(ENEMY_SHOOT_INTERVAL)
-                                    && let Some(bullet) = e.shoot()
-                                {
-                                    self.bullets.push(bullet);
-                                } else if i.is_multiple_of(ENEMY_ROTATION_INTERVAL) {
-                                    e.tank.move_forward_steps = 1;
-                                } else if e.tank.shall_move_forward() {
-                                    e.tank.move_forward(&obstacles);
-                                }
-                            }
+                        // Perform actions
+                        if (is_hard || i.is_multiple_of(ENEMY_SHOOT_INTERVAL))
+                            && let Some(bullet) = e.shoot()
+                        {
+                            self.bullets.push(bullet);
+                        } else if i.is_multiple_of(ENEMY_ROTATION_INTERVAL) {
+                            e.tank.move_forward_steps += 1;
+                            e.tank.move_forward(&obstacles);
                         }
-                    } else if i.is_multiple_of(ENEMY_ROTATION_INTERVAL)
-                        || (matches!(self.difficulty, Difficulty::Hard) && e.needs_rotation)
-                    {
-                        e.rotate();
-                        e.tank.move_forward_steps = 5
                     } else if e.tank.shall_move_forward() {
                         e.tank.move_forward(&obstacles);
+                    } else if i.is_multiple_of(ENEMY_ROTATION_INTERVAL) || e.needs_rotation {
+                        e.rotate();
+                        e.tank.move_forward_steps = 5
                     }
                 }
-                // if i.is_multiple_of(rotation_interval) || e.needs_rotation {
-                //     e.rotate();
-                //     e.tank.move_forward_steps = 6;
-                // }
             });
+
             if i.is_multiple_of(AMMO_INTERVAL) {
                 self.player.add_ammo();
             }
@@ -328,36 +322,54 @@ impl<'a> App<'a> {
         } else {
             match key_event.code {
                 KeyCode::Char('q') | KeyCode::Esc => self.exit(),
-                KeyCode::Char('r')
+                KeyCode::Enter
+                | KeyCode::Char('r')
                 | KeyCode::Char('R')
                 | KeyCode::Char('N')
                 | KeyCode::Char('n') => self.restart(),
+                KeyCode::Char('m') | KeyCode::Char('M') => match self.difficulty {
+                    Difficulty::Easy => self.difficulty = Difficulty::Hard,
+                    Difficulty::Hard => self.difficulty = Difficulty::Easy,
+                },
                 _ => {}
             }
         }
     }
 
+    pub fn is_lost(&self) -> bool {
+        self.player.health == 0
+    }
     fn is_game_end(&self) -> bool {
         self.player.health == 0 || self.enemies.is_empty()
     }
 
     fn exit(&mut self) {
-        self.exit = true;
+        self.state = AppState::Exit
     }
     fn restart(&mut self) {
-        self.exit = true;
-        self.restart = true;
+        self.state = AppState::Restart
+    }
+    pub fn is_restarting(&self) -> bool {
+        matches!(self.state, AppState::Restart)
+    }
+    pub fn is_hard(&self) -> bool {
+        matches!(self.difficulty, Difficulty::Hard)
     }
 }
 
 impl<'a> Widget for &App<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let title = Line::from(vec![
+        let title_vec = vec![
             " vitanchiki ".bold(),
             " level ".into(),
             self.lvl.to_string().into(),
             " ".into(),
-        ]);
+        ];
+        let title = Line::from(if matches!(self.difficulty, Difficulty::Hard) {
+            title_vec.iter().map(|x| x.clone().bold().red()).collect()
+        } else {
+            title_vec
+        });
         let left_instructions = Line::from(vec![
             " Left ".into(),
             "<H>".blue().bold(),
@@ -408,7 +420,16 @@ impl<'a> Widget for &App<'a> {
                 " <R/N> ".blue().bold(),
             ]);
             let instructions_right = Line::from(vec![" Exit ".into(), " <Esc/Q> ".bold().blue()]);
+            let title = Line::from(vec![
+                (if self.is_hard() {
+                    " Hard ".red()
+                } else {
+                    " Easy ".green()
+                }),
+                " <M> ".bold().blue(),
+            ]);
             let block = Block::bordered()
+                .title_bottom(title.centered())
                 .title_bottom(instructions_left.left_aligned())
                 .title_bottom(instructions_right.right_aligned())
                 .border_set(border::PLAIN)
@@ -427,10 +448,10 @@ impl<'a> Widget for &App<'a> {
                 area,
                 ratatui::layout::Constraint::Ratio(1, 2),
             );
-            let text = if self.enemies.is_empty() {
-                Line::from("YOU WON").green().bold()
+            let text = if self.is_lost() {
+                Line::from("\nYOU DIED").red().bold()
             } else {
-                Line::from("YOU DIED").red().bold()
+                Line::from("\nYOU WON").green().bold()
             };
             Clear.render(area, buf);
             Paragraph::new(text)

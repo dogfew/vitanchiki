@@ -8,7 +8,7 @@ use ratatui::{
 };
 
 const HEALTH: usize = 3;
-const MAX_AMMO: usize = 5;
+const MAX_AMMO: usize = 3;
 #[derive(Default)]
 pub struct Tank {
     pub position: Position,
@@ -21,30 +21,16 @@ pub struct Tank {
 }
 
 impl Tank {
-    pub fn new(position: Position) -> Self {
+    pub fn new(position: Position, max_ammo: usize) -> Self {
         Self {
             position,
             direction: MovementDirection::default(),
             health: HEALTH,
-            ammo: MAX_AMMO,
+            ammo: MAX_AMMO.min(max_ammo),
             move_forward_steps: 0,
-            max_health: 5,
-            max_ammo: 5,
+            max_health: HEALTH,
+            max_ammo,
         }
-    }
-
-    pub(crate) fn super_shoot(&mut self) -> Bullet {
-        let direction = self.direction;
-        let (x, y) = self.position;
-        let position: Position = match direction {
-            MovementDirection::Left => (x, y + 1),
-            MovementDirection::Right => (x + 2, y + 1),
-            MovementDirection::Up => (x + 1, y),
-            MovementDirection::Down => (x + 1, y + 1),
-        };
-        self.move_forward_steps = 0;
-        self.ammo -= MAX_AMMO;
-        Bullet::new(position, direction)
     }
 }
 
@@ -74,7 +60,7 @@ impl Widget for &Tank {
 
 impl Tank {
     pub fn add_ammo(&mut self) {
-        if self.ammo < MAX_AMMO {
+        if self.ammo < self.max_ammo {
             self.ammo += 1
         }
     }

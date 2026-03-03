@@ -13,7 +13,7 @@ pub struct Enemy {
 impl Enemy {
     pub fn new(position: Position) -> Self {
         Self {
-            tank: Tank::new(position),
+            tank: Tank::new(position, 1),
             needs_rotation: false,
         }
     }
