@@ -16,5 +16,8 @@ clap = { version = "4.5.60", features = ["derive"] }
 # serde_derive = "1.0.228"
 
 [profile.release]
+opt-level = "z"
 lto = true
 codegen-units = 1
+strip = true
+panic = "abort"
